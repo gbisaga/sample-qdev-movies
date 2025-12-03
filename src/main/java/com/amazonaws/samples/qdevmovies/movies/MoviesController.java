@@ -34,6 +34,26 @@ public class MoviesController {
         return "movies";
     }
 
+    @GetMapping("/movies/{id}/details")
+    public String getMovieDetails(@PathVariable("id") Long movieId, org.springframework.ui.Model model) {
+        logger.info("Fetching details for movie ID: {}", movieId);
+        
+        Optional<Movie> movieOpt = movieService.getMovieById(movieId);
+        if (!movieOpt.isPresent()) {
+            logger.warn("Movie with ID {} not found", movieId);
+            model.addAttribute("title", "Movie Not Found");
+            model.addAttribute("message", "Movie with ID " + movieId + " was not found.");
+            return "error";
+        }
+        
+        Movie movie = movieOpt.get();
+        model.addAttribute("movie", movie);
+        model.addAttribute("movieIcon", MovieIconUtils.getMovieIcon(movie.getMovieName()));
+        model.addAttribute("allReviews", reviewService.getReviewsForMovie(movie.getId()));
+        
+        return "movie-details";
+    }
+
     /**
      * Ahoy matey! This be the main search endpoint that handles both HTML form submissions
      * and JSON API requests. It be as versatile as a pirate's cutlass!
@@ -93,8 +113,16 @@ public class MoviesController {
             
             return "movies";
             
-        } catch (Exception e) {
-            logger.error("Batten down the hatches! Error during movie search: {}", e.getMessage(), e);
+        } catch (IllegalArgumentException e) {
+            logger.error("Batten down the hatches! Invalid search parameters: {}", e.getMessage(), e);
+            model.addAttribute("movies", movieService.getAllMovies());
+            model.addAttribute("genres", movieService.getAllGenres());
+            model.addAttribute("searchMessage", 
+                "Arrr! Invalid search parameters provided, me hearty. Try again!");
+            model.addAttribute("searchPerformed", true);
+            return "movies";
+        } catch (RuntimeException e) {
+            logger.error("Batten down the hatches! Runtime error during movie search: {}", e.getMessage(), e);
             model.addAttribute("movies", movieService.getAllMovies());
             model.addAttribute("genres", movieService.getAllGenres());
             model.addAttribute("searchMessage", 
@@ -161,33 +189,20 @@ public class MoviesController {
             logger.info("API search successful, found {} movies", searchResults.size());
             return ResponseEntity.ok(response);
             
-        } catch (Exception e) {
-            logger.error("Batten down the hatches! Error during API search: {}", e.getMessage(), e);
+        } catch (IllegalArgumentException e) {
+            logger.error("Batten down the hatches! Invalid API search parameters: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Arrr! Invalid search parameters provided, matey!");
+            response.put("movies", List.of());
+            response.put("totalResults", 0);
+            return ResponseEntity.badRequest().body(response);
+        } catch (RuntimeException e) {
+            logger.error("Batten down the hatches! Runtime error during API search: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("message", "Arrr! Something went wrong with the search. Try again later, me hearty!");
             response.put("movies", List.of());
             response.put("totalResults", 0);
             return ResponseEntity.internalServerError().body(response);
         }
-    }
-
-    @GetMapping("/movies/{id}/details")
-    public String getMovieDetails(@PathVariable("id") Long movieId, org.springframework.ui.Model model) {
-        logger.info("Fetching details for movie ID: {}", movieId);
-        
-        Optional<Movie> movieOpt = movieService.getMovieById(movieId);
-        if (!movieOpt.isPresent()) {
-            logger.warn("Movie with ID {} not found", movieId);
-            model.addAttribute("title", "Movie Not Found");
-            model.addAttribute("message", "Movie with ID " + movieId + " was not found.");
-            return "error";
-        }
-        
-        Movie movie = movieOpt.get();
-        model.addAttribute("movie", movie);
-        model.addAttribute("movieIcon", MovieIconUtils.getMovieIcon(movie.getMovieName()));
-        model.addAttribute("allReviews", reviewService.getReviewsForMovie(movie.getId()));
-        
-        return "movie-details";
     }
 }
